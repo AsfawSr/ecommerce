@@ -1,0 +1,50 @@
+server:
+  port: 8082  # Different from User Service (8081) and Eureka (8761)
+
+spring:
+  application:
+    name: product-service
+
+  datasource:
+    url: jdbc:h2:mem:productsdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+    register-with-eureka: true
+    fetch-registry: true
+
+  instance:
+    hostname: localhost
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 5
+    lease-expiration-duration-in-seconds: 10
+
+# OpenFeign Configuration
+feign:
+  client:
+    config:
+      default:
+        connect-timeout: 5000
+        read-timeout: 5000
+        logger-level: basic
+
+# Logging
+logging:
+  level:
+    com.ecommerce.product_service: DEBUG
+    org.springframework.cloud.openfeign: DEBUG
