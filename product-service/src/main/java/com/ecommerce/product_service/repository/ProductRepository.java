@@ -1,6 +1,6 @@
-package com.ecommerce.productservice.repository;
+package com.ecommerce.product_service.repository;
 
-import com.ecommerce.productservice.model.Product;
+import com.ecommerce.product_service.model.Product;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

@@ -1,15 +1,18 @@
-package com.ecommerce.productservice.feign;
+package com.ecommerce.product_service.feign;
 
-import com.ecommerce.productservice.dto.UserDTO;
+import com.ecommerce.product_service.dto.UserDTO;
+import com.ecommerce.product_service.feign.fallback.UserServiceClientFallback;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 
 import java.util.List;
+import java.util.Map;
 
 @FeignClient(
         name = "user-service-client",
-        url = "http://localhost:8081"  // User Service URL
+        url = "http://localhost:8081",
+        fallback = UserServiceClientFallback.class
 )
 public interface UserServiceClient {
 
@@ -19,6 +22,9 @@ public interface UserServiceClient {
     @GetMapping("/api/users/{id}")
     UserDTO getUserById(@PathVariable Long id);
 
-    @GetMapping("/health")
+    @GetMapping("/api/users/health")
     String healthCheck();
+
+    @GetMapping("/api/users/count")
+    Map<String, Long> getUserCount();
 }

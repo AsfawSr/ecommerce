@@ -1,38 +1,13 @@
 server:
   port: 8081
+  servlet:
+    context-path: /api  # Important: Same as Product Service expects!
 
 spring:
   application:
     name: user-service
 
-  datasource:
-    url: jdbc:h2:mem:usersdb
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
-
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: true
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.H2Dialect
-
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
-
-eureka:
-  client:
-    service-url:
-      defaultZone: http://localhost:8761/eureka/
-    register-with-eureka: true
-    fetch-registry: true
-
-  instance:
-    hostname: localhost
-    prefer-ip-address: true
-    lease-renewal-interval-in-seconds: 5
-    lease-expiration-duration-in-seconds: 10
+# Logging
+logging:
+  level:
+    com.ecommerce.userservice: DEBUG
