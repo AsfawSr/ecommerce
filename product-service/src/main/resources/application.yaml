@@ -1,12 +1,14 @@
 server:
-  port: 8082  # Different from User Service (8081) and Eureka (8761)
+  port: 8082
+  servlet:
+    context-path: /api
 
 spring:
   application:
     name: product-service
 
   datasource:
-    url: jdbc:h2:mem:productsdb
+    url: jdbc:h2:mem:productdb
     driver-class-name: org.h2.Driver
     username: sa
     password:
@@ -15,24 +17,14 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
 
   h2:
     console:
       enabled: true
       path: /h2-console
-
-eureka:
-  client:
-    service-url:
-      defaultZone: http://localhost:8761/eureka/
-    register-with-eureka: true
-    fetch-registry: true
-
-  instance:
-    hostname: localhost
-    prefer-ip-address: true
-    lease-renewal-interval-in-seconds: 5
-    lease-expiration-duration-in-seconds: 10
 
 # OpenFeign Configuration
 feign:
@@ -40,11 +32,16 @@ feign:
     config:
       default:
         connect-timeout: 5000
-        read-timeout: 5000
-        logger-level: basic
+        read-timeout: 10000
+        logger-level: full
+  circuitbreaker:
+    enabled: true
+  hystrix:
+    enabled: false  # Using Resilience4j instead
 
 # Logging
 logging:
   level:
-    com.ecommerce.product_service: DEBUG
+    com.ecommerce.productservice: DEBUG
     org.springframework.cloud.openfeign: DEBUG
+    org.hibernate.SQL: DEBUG
