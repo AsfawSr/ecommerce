@@ -10,7 +10,6 @@ import com.ecommerce.user_service.repository.UserRepository;
 import com.ecommerce.user_service.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,7 +25,7 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final UserMapper userMapper;
-    private final PasswordEncoder passwordEncoder;
+    // REMOVED: private final PasswordEncoder passwordEncoder;
 
     @Override
     public UserDTO createUser(UserRequest userRequest) {
@@ -42,11 +41,11 @@ public class UserServiceImpl implements UserService {
             throw new DuplicateResourceException("Email already exists: " + userRequest.getEmail());
         }
 
-        // Create user entity
+        // Create user entity - NO PASSWORD ENCODING
         User user = User.builder()
                 .username(userRequest.getUsername())
                 .email(userRequest.getEmail())
-                .password(passwordEncoder.encode(userRequest.getPassword()))
+                .password(userRequest.getPassword()) // Store plain password for now
                 .firstName(userRequest.getFirstName())
                 .lastName(userRequest.getLastName())
                 .phoneNumber(userRequest.getPhoneNumber())
@@ -128,9 +127,9 @@ public class UserServiceImpl implements UserService {
         user.setUsername(userRequest.getUsername());
         user.setEmail(userRequest.getEmail());
 
-        // Only update password if provided
+        // Only update password if provided - NO ENCODING
         if (userRequest.getPassword() != null && !userRequest.getPassword().isEmpty()) {
-            user.setPassword(passwordEncoder.encode(userRequest.getPassword()));
+            user.setPassword(userRequest.getPassword()); // Store plain password
         }
 
         user.setFirstName(userRequest.getFirstName());
@@ -214,12 +213,13 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + username));
 
-        if (!passwordEncoder.matches(password, user.getPassword())) {
-            throw new SecurityException("Invalid credentials");
+        // Simple password check (no encoding)
+        if (!password.equals(user.getPassword())) {
+            throw new RuntimeException("Invalid credentials");
         }
 
         if (!user.getEnabled()) {
-            throw new SecurityException("User account is disabled");
+            throw new RuntimeException("User account is disabled");
         }
 
         // Update last login

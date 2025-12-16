@@ -31,12 +31,13 @@ spring:
         order_inserts: true
         order_updates: true
 
-  # Security (Basic)
-  security:
-    user:
-      name: admin
-      password: admin123
-      roles: ADMIN
+#  # Security (Basic)
+#  security:
+#    user:
+#      name: admin
+#      password: admin123
+#      roles: ADMIN
+
 
 # Logging
 logging:
