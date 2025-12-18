@@ -1,5 +1,6 @@
 package com.ecommerce.user_service.exception;
 
+import io.swagger.v3.oas.annotations.Hidden;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -15,7 +16,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
-
+@Hidden
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
@@ -88,7 +89,6 @@ public class GlobalExceptionHandler {
 
 }
 
-// Error Response DTO
 @Data
 @Builder
 @NoArgsConstructor
