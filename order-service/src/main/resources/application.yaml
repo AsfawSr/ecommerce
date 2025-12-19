@@ -24,6 +24,8 @@ server:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
+        jdbc:
+          batch_size: 20
 
   h2:
     console:
@@ -38,6 +40,43 @@ feign:
         connect-timeout: 5000
         read-timeout: 10000
         logger-level: full
+      product-service-client:
+        url: http://localhost:8082
+      user-service-client:
+        url: http://localhost:8081
+
+# Resilience4j Circuit Breaker Configuration
+resilience4j:
+  circuitbreaker:
+    instances:
+      productService:
+        register-health-indicator: true
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        wait-duration-in-open-state: 10s
+        failure-rate-threshold: 50
+        event-consumer-buffer-size: 10
+      userService:
+        register-health-indicator: true
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,circuitbreakers
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+  circuitbreakers:
+    enabled: true
 
 # Logging
 logging:
@@ -45,3 +84,5 @@ logging:
     com.ecommerce.orderservice: DEBUG
     org.springframework.cloud.openfeign: DEBUG
     org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    io.github.resilience4j: DEBUG

@@ -1,3 +1,4 @@
+// ProductDTO.java
 package com.ecommerce.orderservice.dto;
 
 import lombok.AllArgsConstructor;
@@ -16,7 +17,7 @@ public class ProductDTO {
     private String sku;
     private String description;
     private BigDecimal price;
-    private Integer stockQuantity;  // NEW: Add this field
+    private Integer stockQuantity;
     private String category;
     private String imageUrl;
     private boolean active;
