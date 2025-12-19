@@ -154,4 +154,32 @@ public class OrderController {
     public ResponseEntity<String> test() {
         return ResponseEntity.ok("Order Service is running!");
     }
+
+    @PatchMapping("/{orderId}/items/{itemId}/quantity")
+    public ResponseEntity<OrderDTO> updateOrderItemQuantity(
+            @PathVariable Long orderId,
+            @PathVariable Long itemId,
+            @RequestParam Integer quantity) {
+        log.info("Updating quantity for item {} in order {} to {}", itemId, orderId, quantity);
+        OrderDTO order = orderService.updateOrderItemQuantity(orderId, itemId, quantity);
+        return ResponseEntity.ok(order);
+    }
+
+    // NEW: Check product stock
+    @GetMapping("/products/{productId}/stock")
+    public ResponseEntity<Map<String, Integer>> checkProductStock(@PathVariable Long productId) {
+        log.info("Checking stock for product ID: {}", productId);
+        Integer stock = orderService.checkProductStock(productId);
+        return ResponseEntity.ok(Map.of("stock", stock));
+    }
+
+    // NEW: Bulk order creation with stock validation
+    @PostMapping("/bulk")
+    public ResponseEntity<List<OrderDTO>> createBulkOrders(@RequestBody List<OrderRequest> orderRequests) {
+        log.info("Creating {} orders in bulk", orderRequests.size());
+        List<OrderDTO> orders = orderRequests.stream()
+                .map(orderService::createOrder)
+                .toList();
+        return ResponseEntity.status(HttpStatus.CREATED).body(orders);
+    }
 }
