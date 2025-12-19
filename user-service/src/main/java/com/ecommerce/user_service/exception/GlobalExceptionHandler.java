@@ -1,10 +1,6 @@
 package com.ecommerce.user_service.exception;
 
 import io.swagger.v3.oas.annotations.Hidden;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -89,14 +85,3 @@ public class GlobalExceptionHandler {
 
 }
 
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
-class ErrorResponse {
-    private LocalDateTime timestamp;
-    private int status;
-    private String error;
-    private String message;
-    private Object details;
-}
