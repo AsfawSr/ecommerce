@@ -43,3 +43,22 @@
 2025-12-19 10:19:35 [main] INFO  o.s.boot.tomcat.TomcatWebServer - Tomcat started on port 8083 (http) with context path '/api'
 2025-12-19 10:19:36 [main] INFO  o.s.cloud.commons.util.InetUtils - Cannot determine local hostname
 2025-12-19 10:19:36 [main] INFO  c.e.o.OrderServiceApplication - Started OrderServiceApplication in 6.53 seconds (process running for 7.326)
+2025-12-19 10:31:54 [http-nio-8083-exec-1] INFO  o.a.c.c.C.[.[localhost].[/api] - Initializing Spring DispatcherServlet 'dispatcherServlet'
+2025-12-19 10:31:54 [http-nio-8083-exec-1] INFO  o.s.web.servlet.DispatcherServlet - Initializing Servlet 'dispatcherServlet'
+2025-12-19 10:31:54 [http-nio-8083-exec-1] INFO  o.s.web.servlet.DispatcherServlet - Completed initialization in 2 ms
+2025-12-19 10:32:05 [http-nio-8083-exec-4] INFO  c.e.o.controller.OrderController - Testing OpenFeign connections
+2025-12-19 10:32:32 [http-nio-8083-exec-5] INFO  c.e.o.controller.OrderController - Creating order for user: 1
+2025-12-19 10:32:32 [http-nio-8083-exec-5] INFO  c.e.o.service.impl.OrderServiceImpl - Creating order for user ID: 1
+2025-12-19 10:32:32 [http-nio-8083-exec-5] ERROR c.e.o.e.GlobalExceptionHandler - Runtime exception: Order must contain at least one item
+2025-12-19 10:32:55 [http-nio-8083-exec-7] INFO  c.e.o.controller.OrderController - Getting all orders
+2025-12-19 10:32:55 [http-nio-8083-exec-7] INFO  c.e.o.service.impl.OrderServiceImpl - Getting all orders
+2025-12-19 10:32:55 [http-nio-8083-exec-7] DEBUG org.hibernate.SQL - select o1_0.id,o1_0.billing_address,o1_0.created_at,o1_0.estimated_delivery,o1_0.notes,o1_0.order_number,o1_0.payment_method,o1_0.payment_status,o1_0.shipping_address,o1_0.status,o1_0.total_amount,o1_0.tracking_number,o1_0.updated_at,o1_0.user_email,o1_0.user_id,o1_0.user_name from orders o1_0
+2025-12-19 10:33:07 [http-nio-8083-exec-9] INFO  c.e.o.controller.OrderController - Getting order count
+2025-12-19 10:33:07 [http-nio-8083-exec-9] DEBUG org.hibernate.SQL - select count(*) from orders o1_0
+2025-12-19 10:41:30 [SpringApplicationShutdownHook] INFO  o.s.boot.tomcat.GracefulShutdown - Commencing graceful shutdown. Waiting for active requests to complete
+2025-12-19 10:41:30 [tomcat-shutdown] INFO  o.s.boot.tomcat.GracefulShutdown - Graceful shutdown complete
+2025-12-19 10:41:30 [SpringApplicationShutdownHook] INFO  o.s.o.j.LocalContainerEntityManagerFactoryBean - Closing JPA EntityManagerFactory for persistence unit 'default'
+2025-12-19 10:41:30 [SpringApplicationShutdownHook] DEBUG org.hibernate.SQL - drop table if exists order_items cascade 
+2025-12-19 10:41:30 [SpringApplicationShutdownHook] DEBUG org.hibernate.SQL - drop table if exists orders cascade 
+2025-12-19 10:41:30 [SpringApplicationShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown initiated...
+2025-12-19 10:41:30 [SpringApplicationShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown completed.

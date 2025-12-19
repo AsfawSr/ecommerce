@@ -3,6 +3,7 @@ package com.ecommerce.orderservice.controller;
 import com.ecommerce.orderservice.dto.OrderDTO;
 import com.ecommerce.orderservice.dto.OrderRequest;
 import com.ecommerce.orderservice.service.OrderService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -22,7 +23,7 @@ public class OrderController {
     private final OrderService orderService;
 
     @PostMapping
-    public ResponseEntity<OrderDTO> createOrder(@RequestBody OrderRequest orderRequest) {
+    public ResponseEntity<OrderDTO> createOrder(@Valid @RequestBody OrderRequest orderRequest) {
         log.info("Creating order for user: {}", orderRequest.getUserId());
         OrderDTO order = orderService.createOrder(orderRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(order);
@@ -82,9 +83,19 @@ public class OrderController {
     @PutMapping("/{id}")
     public ResponseEntity<OrderDTO> updateOrder(
             @PathVariable Long id,
-            @RequestBody OrderRequest orderRequest) {
+            @Valid @RequestBody OrderRequest orderRequest) {
         log.info("Updating order: {}", id);
         OrderDTO order = orderService.updateOrder(id, orderRequest);
+        return ResponseEntity.ok(order);
+    }
+
+    @PatchMapping("/{orderId}/items/{itemId}/quantity")
+    public ResponseEntity<OrderDTO> updateOrderItemQuantity(
+            @PathVariable Long orderId,
+            @PathVariable Long itemId,
+            @RequestParam Integer quantity) {
+        log.info("Updating quantity for item {} in order {} to {}", itemId, orderId, quantity);
+        OrderDTO order = orderService.updateOrderItemQuantity(orderId, itemId, quantity);
         return ResponseEntity.ok(order);
     }
 
@@ -109,36 +120,25 @@ public class OrderController {
         return ResponseEntity.ok(Map.of("revenue", revenue));
     }
 
+    @GetMapping("/products/{productId}/stock")
+    public ResponseEntity<Map<String, Integer>> checkProductStock(@PathVariable Long productId) {
+        log.info("Checking stock for product ID: {}", productId);
+        Integer stock = orderService.checkProductStock(productId);
+        return ResponseEntity.ok(Map.of("stock", stock));
+    }
+
+    @GetMapping("/stats")
+    public ResponseEntity<Map<String, Object>> getOrderStatistics() {
+        log.info("Getting order statistics");
+        Map<String, Object> stats = orderService.getOrderStatistics();
+        return ResponseEntity.ok(stats);
+    }
+
     @GetMapping("/exists/{id}")
     public ResponseEntity<Map<String, Boolean>> orderExists(@PathVariable Long id) {
         log.info("Checking if order exists: {}", id);
         boolean exists = orderService.orderExists(id);
         return ResponseEntity.ok(Map.of("exists", exists));
-    }
-
-    // OpenFeign Test Endpoints
-    @GetMapping("/test-feign")
-    public ResponseEntity<Map<String, Object>> testFeign() {
-        log.info("Testing OpenFeign connections");
-
-        try {
-            // Test User Service connection
-            String userHealth = "http://localhost:8081/api/users/health";
-            // Test Product Service connection
-            String productHealth = "http://localhost:8082/api/products/health";
-
-            return ResponseEntity.ok(Map.of(
-                    "status", "Testing OpenFeign",
-                    "userService", userHealth,
-                    "productService", productHealth,
-                    "message", "Update URLs in Feign clients"
-            ));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
-                    "error", e.getMessage(),
-                    "message", "OpenFeign test failed"
-            ));
-        }
     }
 
     @GetMapping("/health")
@@ -153,33 +153,5 @@ public class OrderController {
     @GetMapping("/test")
     public ResponseEntity<String> test() {
         return ResponseEntity.ok("Order Service is running!");
-    }
-
-    @PatchMapping("/{orderId}/items/{itemId}/quantity")
-    public ResponseEntity<OrderDTO> updateOrderItemQuantity(
-            @PathVariable Long orderId,
-            @PathVariable Long itemId,
-            @RequestParam Integer quantity) {
-        log.info("Updating quantity for item {} in order {} to {}", itemId, orderId, quantity);
-        OrderDTO order = orderService.updateOrderItemQuantity(orderId, itemId, quantity);
-        return ResponseEntity.ok(order);
-    }
-
-    // NEW: Check product stock
-    @GetMapping("/products/{productId}/stock")
-    public ResponseEntity<Map<String, Integer>> checkProductStock(@PathVariable Long productId) {
-        log.info("Checking stock for product ID: {}", productId);
-        Integer stock = orderService.checkProductStock(productId);
-        return ResponseEntity.ok(Map.of("stock", stock));
-    }
-
-    // NEW: Bulk order creation with stock validation
-    @PostMapping("/bulk")
-    public ResponseEntity<List<OrderDTO>> createBulkOrders(@RequestBody List<OrderRequest> orderRequests) {
-        log.info("Creating {} orders in bulk", orderRequests.size());
-        List<OrderDTO> orders = orderRequests.stream()
-                .map(orderService::createOrder)
-                .toList();
-        return ResponseEntity.status(HttpStatus.CREATED).body(orders);
     }
 }

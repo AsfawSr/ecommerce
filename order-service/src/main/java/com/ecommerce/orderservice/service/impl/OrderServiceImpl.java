@@ -1,4 +1,3 @@
-// OrderServiceImpl.java - UPDATED VERSION
 package com.ecommerce.orderservice.service.impl;
 
 import com.ecommerce.orderservice.dto.*;
@@ -11,10 +10,12 @@ import com.ecommerce.orderservice.model.Order;
 import com.ecommerce.orderservice.model.OrderItem;
 import com.ecommerce.orderservice.repository.OrderRepository;
 import com.ecommerce.orderservice.service.OrderService;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.validation.annotation.Validated;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -24,7 +25,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-@Transactional
+@Validated
 public class OrderServiceImpl implements OrderService {
 
     private final OrderRepository orderRepository;
@@ -32,11 +33,10 @@ public class OrderServiceImpl implements OrderService {
     private final ProductServiceClient productServiceClient;
 
     @Override
+    @Transactional
+    @CircuitBreaker(name = "orderService", fallbackMethod = "createOrderFallback")
     public OrderDTO createOrder(OrderRequest orderRequest) {
         log.info("Creating order for user ID: {}", orderRequest.getUserId());
-
-        // Validate request
-        validateOrderRequest(orderRequest);
 
         // 1. Fetch user details from User Service via Feign
         UserDTO user = fetchUserDetails(orderRequest.getUserId());
@@ -62,6 +62,7 @@ public class OrderServiceImpl implements OrderService {
             Order savedOrder = orderRepository.save(order);
             log.info("Order created successfully: {}", orderNumber);
 
+            // 8. Return DTO
             return convertToDTO(savedOrder);
 
         } catch (Exception e) {
@@ -72,18 +73,10 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
-    private void validateOrderRequest(OrderRequest orderRequest) {
-        if (orderRequest.getUserId() == null) {
-            throw new IllegalArgumentException("User ID is required");
-        }
-        if (orderRequest.getItems() == null || orderRequest.getItems().isEmpty()) {
-            throw new IllegalArgumentException("Order must contain at least one item");
-        }
-        for (OrderItemRequest item : orderRequest.getItems()) {
-            if (item.getQuantity() == null || item.getQuantity() <= 0) {
-                throw new IllegalArgumentException("Quantity must be greater than 0");
-            }
-        }
+    // Fallback method for circuit breaker
+    public OrderDTO createOrderFallback(OrderRequest orderRequest, Exception e) {
+        log.error("Circuit breaker fallback triggered for createOrder: {}", e.getMessage());
+        throw new OrderProcessingException("Order service is temporarily unavailable. Please try again later.");
     }
 
     private UserDTO fetchUserDetails(Long userId) {
@@ -98,7 +91,8 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private String generateOrderNumber() {
-        return "ORD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        return "ORD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase()
+                + "-" + LocalDateTime.now().getYear();
     }
 
     private Order buildOrder(OrderRequest orderRequest, UserDTO user, String orderNumber) {
@@ -127,10 +121,8 @@ public class OrderServiceImpl implements OrderService {
             // Validate stock availability
             validateStockAvailability(product, itemRequest.getQuantity());
 
-            // Use product price if unit price not provided
-            BigDecimal unitPrice = itemRequest.getUnitPrice() != null
-                    ? itemRequest.getUnitPrice()
-                    : product.getPrice();
+            // Use product price if unit price not provided (but validation ensures it's provided)
+            BigDecimal unitPrice = itemRequest.getUnitPrice();
 
             // Create order item
             OrderItem orderItem = OrderItem.builder()
@@ -169,7 +161,6 @@ public class OrderServiceImpl implements OrderService {
             );
         }
 
-        // Optional: Check if product is active
         if (!product.isActive()) {
             throw new OrderProcessingException("Product " + product.getName() + " is not available");
         }
@@ -203,13 +194,12 @@ public class OrderServiceImpl implements OrderService {
                 log.info("Released {} units of product ID: {}", item.getQuantity(), item.getProductId());
             } catch (Exception e) {
                 log.error("Failed to release inventory for product ID: {}", item.getProductId(), e);
-                // Don't throw exception here, just log it
             }
         }
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public OrderDTO getOrderById(Long id) {
         log.info("Getting order by ID: {}", id);
         Order order = orderRepository.findById(id)
@@ -218,7 +208,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public OrderDTO getOrderByOrderNumber(String orderNumber) {
         log.info("Getting order by number: {}", orderNumber);
         Order order = orderRepository.findByOrderNumber(orderNumber)
@@ -227,7 +217,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public List<OrderDTO> getAllOrders() {
         log.info("Getting all orders");
         return orderRepository.findAll().stream()
@@ -236,7 +226,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public List<OrderDTO> getOrdersByUserId(Long userId) {
         log.info("Getting orders for user ID: {}", userId);
         return orderRepository.findByUserId(userId).stream()
@@ -245,7 +235,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public List<OrderDTO> getOrdersByStatus(String status) {
         log.info("Getting orders with status: {}", status);
         return orderRepository.findByStatus(status).stream()
@@ -254,7 +244,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public List<OrderDTO> searchOrders(String keyword) {
         log.info("Searching orders with keyword: {}", keyword);
         return orderRepository.searchOrders(keyword).stream()
@@ -263,6 +253,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @Transactional
     public OrderDTO updateOrderStatus(Long id, String status) {
         log.info("Updating order {} status to: {}", id, status);
 
@@ -270,23 +261,16 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found with ID: " + id));
 
         String previousStatus = order.getStatus();
-        order.setStatus(status);
+        order.setStatus(status.toUpperCase());
 
         // Handle inventory based on status changes
-        handleStatusChangeInventory(previousStatus, status, order.getOrderItems());
+        handleStatusChangeInventory(previousStatus, status.toUpperCase(), order.getOrderItems());
 
-        // If delivered, update payment status to PAID
-        if ("DELIVERED".equals(status)) {
-            order.setPaymentStatus("PAID");
-        }
-
-        // If cancelled, release inventory
-        if ("CANCELLED".equals(status) && !"CANCELLED".equals(previousStatus)) {
-            releaseInventory(order.getOrderItems());
-            order.setPaymentStatus("REFUNDED");
-        }
+        // Update payment status based on order status
+        updatePaymentStatusBasedOnOrderStatus(order, status.toUpperCase());
 
         Order updatedOrder = orderRepository.save(order);
+        log.info("Order {} status updated from {} to {}", id, previousStatus, status);
         return convertToDTO(updatedOrder);
     }
 
@@ -302,15 +286,46 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
+    private void updatePaymentStatusBasedOnOrderStatus(Order order, String status) {
+        switch (status) {
+            case "DELIVERED":
+                order.setPaymentStatus("PAID");
+                break;
+            case "CANCELLED":
+                order.setPaymentStatus("REFUNDED");
+                break;
+            case "PROCESSING":
+            case "SHIPPED":
+                order.setPaymentStatus("PAID"); // Assuming payment is captured before shipping
+                break;
+        }
+    }
+
+    private void releaseInventory(List<OrderItem> orderItems) {
+        for (OrderItem item : orderItems) {
+            try {
+                productServiceClient.releaseInventory(item.getProductId(), item.getQuantity());
+                log.info("Released {} units of product ID: {}", item.getQuantity(), item.getProductId());
+            } catch (Exception e) {
+                log.error("Failed to release inventory for product ID: {}", item.getProductId(), e);
+            }
+        }
+    }
+
     @Override
+    @Transactional
     public OrderDTO updateOrder(Long id, OrderRequest orderRequest) {
         log.info("Updating order ID: {}", id);
 
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found with ID: " + id));
 
-        // For simplicity, only allow updating shipping/billing addresses and notes
-        // Changing items would require complex inventory reconciliation
+        // Only allow updating if order is still PENDING
+        if (!"PENDING".equals(order.getStatus())) {
+            throw new OrderProcessingException("Cannot update order with status: " + order.getStatus());
+        }
+
+        // Update allowed fields
         order.setShippingAddress(orderRequest.getShippingAddress());
         order.setBillingAddress(orderRequest.getBillingAddress());
         order.setPaymentMethod(orderRequest.getPaymentMethod());
@@ -321,60 +336,13 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public void cancelOrder(Long id) {
-        log.info("Cancelling order ID: {}", id);
-
-        Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found with ID: " + id));
-
-        if ("DELIVERED".equals(order.getStatus())) {
-            throw new RuntimeException("Cannot cancel a delivered order");
-        }
-
-        // Release inventory
-        releaseInventory(order.getOrderItems());
-
-        order.setStatus("CANCELLED");
-        order.setPaymentStatus("REFUNDED");
-        orderRepository.save(order);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public boolean orderExists(Long id) {
-        return orderRepository.existsById(id);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public long countOrders() {
-        return orderRepository.count();
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public BigDecimal getTotalRevenue() {
-        BigDecimal revenue = orderRepository.getTotalRevenue();
-        return revenue != null ? revenue : BigDecimal.ZERO;
-    }
-
-    // New method: Check stock for a product
-    public Integer checkProductStock(Long productId) {
-        try {
-            return productServiceClient.checkStock(productId);
-        } catch (Exception e) {
-            log.error("Failed to check stock for product ID: {}", productId, e);
-            throw new OrderProcessingException("Failed to check product stock", e);
-        }
-    }
-
-    // New method: Update order item quantities (with inventory validation)
+    @Transactional
     public OrderDTO updateOrderItemQuantity(Long orderId, Long itemId, Integer newQuantity) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found with ID: " + orderId));
 
         if (!"PENDING".equals(order.getStatus())) {
-            throw new RuntimeException("Cannot modify items for order with status: " + order.getStatus());
+            throw new OrderProcessingException("Cannot modify items for order with status: " + order.getStatus());
         }
 
         OrderItem item = order.getOrderItems().stream()
@@ -391,35 +359,104 @@ public class OrderServiceImpl implements OrderService {
             // Calculate quantity difference
             int quantityDiff = newQuantity - item.getQuantity();
 
-            if (quantityDiff > 0) {
-                // Reserve additional inventory
-                productServiceClient.reserveInventory(item.getProductId(), quantityDiff);
-            } else {
-                // Release excess inventory
-                productServiceClient.releaseInventory(item.getProductId(), -quantityDiff);
+            try {
+                if (quantityDiff > 0) {
+                    // Reserve additional inventory
+                    productServiceClient.reserveInventory(item.getProductId(), quantityDiff);
+                } else {
+                    // Release excess inventory
+                    productServiceClient.releaseInventory(item.getProductId(), -quantityDiff);
+                }
+
+                item.setQuantity(newQuantity);
+                item.calculateSubtotal();
+
+                // Recalculate order total
+                order.setTotalAmount(calculateTotal(order.getOrderItems()));
+
+                log.info("Updated quantity for item {} in order {}: {} -> {}",
+                        itemId, orderId, item.getQuantity(), newQuantity);
+
+            } catch (Exception e) {
+                log.error("Failed to update inventory for item {}: {}", itemId, e.getMessage());
+                throw new OrderProcessingException("Failed to update item quantity: " + e.getMessage(), e);
             }
-
-            item.setQuantity(newQuantity);
-            item.calculateSubtotal();
-
-            // Recalculate order total
-            order.setTotalAmount(calculateTotal(order.getOrderItems()));
         }
 
         Order updatedOrder = orderRepository.save(order);
         return convertToDTO(updatedOrder);
     }
 
-    private void releaseInventory(List<OrderItem> orderItems) {
-        for (OrderItem item : orderItems) {
-            try {
-                productServiceClient.releaseInventory(item.getProductId(), item.getQuantity());
-                log.info("Released {} units of product ID: {}", item.getQuantity(), item.getProductId());
-            } catch (Exception e) {
-                log.error("Failed to release inventory for product ID: {}", item.getProductId(), e);
-                // Continue with other items even if one fails
-            }
+    @Override
+    @Transactional
+    public void cancelOrder(Long id) {
+        log.info("Cancelling order ID: {}", id);
+
+        Order order = orderRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found with ID: " + id));
+
+        if ("DELIVERED".equals(order.getStatus())) {
+            throw new OrderProcessingException("Cannot cancel a delivered order");
         }
+
+        // Release inventory
+        releaseInventory(order.getOrderItems());
+
+        order.setStatus("CANCELLED");
+        order.setPaymentStatus("REFUNDED");
+        orderRepository.save(order);
+
+        log.info("Order {} has been cancelled", id);
+    }
+
+    @Override
+    @Transactional
+    public boolean orderExists(Long id) {
+        return orderRepository.existsById(id);
+    }
+
+    @Override
+    @Transactional
+    public long countOrders() {
+        return orderRepository.count();
+    }
+
+    @Override
+    @Transactional
+    public BigDecimal getTotalRevenue() {
+        BigDecimal revenue = orderRepository.getTotalRevenue();
+        return revenue != null ? revenue : BigDecimal.ZERO;
+    }
+
+    @Override
+    @Transactional
+    public Integer checkProductStock(Long productId) {
+        try {
+            return productServiceClient.checkStock(productId);
+        } catch (Exception e) {
+            log.error("Failed to check stock for product ID: {}", productId, e);
+            throw new OrderProcessingException("Failed to check product stock", e);
+        }
+    }
+
+    @Override
+    @Transactional
+    public Map<String, Object> getOrderStatistics() {
+        Map<String, Object> stats = new HashMap<>();
+
+        stats.put("totalOrders", orderRepository.count());
+        stats.put("deliveredOrders", orderRepository.countDeliveredOrders());
+        stats.put("totalRevenue", getTotalRevenue());
+
+        // Count orders by status
+        List<String> statuses = Arrays.asList("PENDING", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED");
+        Map<String, Long> ordersByStatus = new HashMap<>();
+        for (String status : statuses) {
+            ordersByStatus.put(status, (long) orderRepository.findByStatus(status).size());
+        }
+        stats.put("ordersByStatus", ordersByStatus);
+
+        return stats;
     }
 
     private OrderDTO convertToDTO(Order order) {
