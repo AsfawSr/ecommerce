@@ -1,5 +1,6 @@
 package com.ecommerce.product_service.model;
 
+import com.ecommerce.product_service.exception.InsufficientStockException;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -59,5 +60,42 @@ public class Product {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+
+    // NEW: Inventory management methods
+    public void reserveStock(Integer quantity) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Quantity must be positive");
+        }
+
+        if (this.stockQuantity < quantity) {
+            throw new InsufficientStockException(
+                    this.name,
+                    quantity,
+                    this.stockQuantity
+            );
+        }
+
+        this.stockQuantity -= quantity;
+    }
+
+    public void releaseStock(Integer quantity) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Quantity must be positive");
+        }
+
+        this.stockQuantity += quantity;
+    }
+
+    public void addStock(Integer quantity) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Quantity must be positive");
+        }
+
+        this.stockQuantity += quantity;
+    }
+
+    public boolean hasStock(Integer quantity) {
+        return this.stockQuantity >= quantity && quantity > 0;
     }
 }

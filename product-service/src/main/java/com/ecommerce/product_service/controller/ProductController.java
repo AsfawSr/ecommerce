@@ -1,9 +1,12 @@
 package com.ecommerce.product_service.controller;
 
 import com.ecommerce.product_service.dto.ProductDTO;
+import com.ecommerce.product_service.dto.ProductRequest;
 import com.ecommerce.product_service.dto.UserDTO;
 import com.ecommerce.product_service.feign.UserServiceClient;
 import com.ecommerce.product_service.service.ProductService;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -22,12 +25,11 @@ public class ProductController {
     private final ProductService productService;
     private final UserServiceClient userServiceClient;
 
-    // ========== PRODUCT ENDPOINTS ==========
 
     @PostMapping
-    public ResponseEntity<ProductDTO> createProduct(@RequestBody ProductDTO productDTO) {
-        log.info("Creating product: {}", productDTO.getName());
-        ProductDTO created = productService.createProduct(productDTO);
+    public ResponseEntity<ProductDTO> createProduct(@Valid @RequestBody ProductRequest productRequest) {
+        log.info("Creating product: {}", productRequest.getName());
+        ProductDTO created = productService.createProduct(productRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
@@ -67,9 +69,11 @@ public class ProductController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ProductDTO> updateProduct(@PathVariable Long id, @RequestBody ProductDTO productDTO) {
+    public ResponseEntity<ProductDTO> updateProduct(
+            @PathVariable Long id,
+            @Valid @RequestBody ProductRequest productRequest) {
         log.info("Updating product ID: {}", id);
-        ProductDTO updated = productService.updateProduct(id, productDTO);
+        ProductDTO updated = productService.updateProduct(id, productRequest);
         return ResponseEntity.ok(updated);
     }
 
@@ -87,6 +91,70 @@ public class ProductController {
         return ResponseEntity.noContent().build();
     }
 
+
+    @PostMapping("/{id}/reserve")
+    @CircuitBreaker(name = "productService", fallbackMethod = "reserveInventoryFallback")
+    public ResponseEntity<ProductDTO> reserveInventory(
+            @PathVariable Long id,
+            @RequestParam Integer quantity) {
+        log.info("Reserving inventory for product ID: {}, quantity: {}", id, quantity);
+        ProductDTO product = productService.reserveInventory(id, quantity);
+        return ResponseEntity.ok(product);
+    }
+
+    public ResponseEntity<ProductDTO> reserveInventoryFallback(Long id, Integer quantity, Exception e) {
+        log.error("Fallback for reserveInventory: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ProductDTO.builder()
+                        .id(id)
+                        .name("Service Unavailable")
+                        .stockQuantity(0)
+                        .build());
+    }
+
+    @PostMapping("/{id}/release")
+    @CircuitBreaker(name = "productService", fallbackMethod = "releaseInventoryFallback")
+    public ResponseEntity<ProductDTO> releaseInventory(
+            @PathVariable Long id,
+            @RequestParam Integer quantity) {
+        log.info("Releasing inventory for product ID: {}, quantity: {}", id, quantity);
+        ProductDTO product = productService.releaseInventory(id, quantity);
+        return ResponseEntity.ok(product);
+    }
+
+    public ResponseEntity<ProductDTO> releaseInventoryFallback(Long id, Integer quantity, Exception e) {
+        log.error("Fallback for releaseInventory: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ProductDTO.builder()
+                        .id(id)
+                        .name("Service Unavailable")
+                        .stockQuantity(0)
+                        .build());
+    }
+
+    @GetMapping("/{id}/stock")
+    @CircuitBreaker(name = "productService", fallbackMethod = "checkStockFallback")
+    public ResponseEntity<Map<String, Integer>> checkStock(@PathVariable Long id) {
+        log.info("Checking stock for product ID: {}", id);
+        Integer stock = productService.checkStock(id);
+        return ResponseEntity.ok(Map.of("stock", stock));
+    }
+
+    public ResponseEntity<Map<String, Integer>> checkStockFallback(Long id, Exception e) {
+        log.error("Fallback for checkStock: {}", e.getMessage());
+        return ResponseEntity.ok(Map.of("stock", 0));
+    }
+
+    // ========== ADDITIONAL ENDPOINTS ==========
+
+    @GetMapping("/low-stock")
+    public ResponseEntity<List<ProductDTO>> getLowStockProducts(
+            @RequestParam(defaultValue = "10") Integer threshold) {
+        log.info("Getting low stock products (threshold: {})", threshold);
+        List<ProductDTO> products = productService.getLowStockProducts(threshold);
+        return ResponseEntity.ok(products);
+    }
+
     @GetMapping("/count")
     public ResponseEntity<Map<String, Long>> getProductCount() {
         log.info("Getting product count");
@@ -101,7 +169,13 @@ public class ProductController {
         return ResponseEntity.ok(Map.of("exists", exists));
     }
 
-    // ========== OPENFEIGN ENDPOINTS ==========
+    @GetMapping("/stats")
+    public ResponseEntity<Map<String, Object>> getProductStatistics() {
+        log.info("Getting product statistics");
+        Map<String, Object> stats = productService.getProductStatistics();
+        return ResponseEntity.ok(stats);
+    }
+
 
     @GetMapping("/feign/users")
     public ResponseEntity<List<UserDTO>> getAllUsersViaFeign() {
@@ -119,43 +193,6 @@ public class ProductController {
         return ResponseEntity.ok(user);
     }
 
-    @GetMapping("/feign/user-health")
-    public ResponseEntity<String> checkUserServiceHealth() {
-        log.info("📞 Checking User Service health via OpenFeign");
-        String health = userServiceClient.healthCheck();
-        log.info("✅ User Service health: {}", health);
-        return ResponseEntity.ok(health);
-    }
-
-    @GetMapping("/feign/user-count")
-    public ResponseEntity<Map<String, Long>> getUserCountViaFeign() {
-        log.info("📞 Getting user count via OpenFeign");
-        Map<String, Long> count = userServiceClient.getUserCount();
-        log.info("✅ User count: {}", count);
-        return ResponseEntity.ok(count);
-    }
-
-    @GetMapping("/{productId}/with-user/{userId}")
-    public ResponseEntity<Map<String, Object>> getProductWithUserInfo(
-            @PathVariable Long productId,
-            @PathVariable Long userId) {
-
-        log.info("🔄 Getting product {} with user {}", productId, userId);
-
-        ProductDTO product = productService.getProductById(productId);
-        UserDTO user = userServiceClient.getUserById(userId);
-
-        Map<String, Object> response = Map.of(
-                "product", product,
-                "user", user,
-                "message", "Successfully retrieved product with user info",
-                "source", "Product Service using OpenFeign"
-        );
-
-        return ResponseEntity.ok(response);
-    }
-
-    // ========== HEALTH & TEST ==========
 
     @GetMapping("/health")
     public ResponseEntity<Map<String, String>> health() {
@@ -169,31 +206,5 @@ public class ProductController {
     @GetMapping("/test")
     public ResponseEntity<String> test() {
         return ResponseEntity.ok("Product Service is running!");
-    }
-
-    @GetMapping("/test-feign")
-    public ResponseEntity<Map<String, Object>> testFeign() {
-        log.info("Testing OpenFeign integration");
-
-        try {
-            List<UserDTO> users = userServiceClient.getAllUsers();
-            String health = userServiceClient.healthCheck();
-            Map<String, Long> count = userServiceClient.getUserCount();
-
-            return ResponseEntity.ok(Map.of(
-                    "feignStatus", "WORKING",
-                    "userCount", users.size(),
-                    "userServiceHealth", health,
-                    "userCountResponse", count,
-                    "message", "OpenFeign is successfully communicating with User Service"
-            ));
-        } catch (Exception e) {
-            log.error("Feign test failed: ", e);
-            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
-                    "feignStatus", "FAILED",
-                    "error", e.getMessage(),
-                    "message", "OpenFeign communication failed. Is User Service running?"
-            ));
-        }
     }
 }
