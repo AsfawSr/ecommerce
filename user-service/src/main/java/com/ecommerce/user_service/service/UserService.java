@@ -2,8 +2,10 @@ package com.ecommerce.user_service.service;
 
 import com.ecommerce.user_service.dto.UserDTO;
 import com.ecommerce.user_service.dto.UserRequest;
+import com.ecommerce.user_service.dto.UserResponseDTO;
 
 import java.util.List;
+import java.util.Map;
 
 public interface UserService {
 
@@ -21,4 +23,9 @@ public interface UserService {
     boolean userExists(Long id);
     long countUsers();
     UserDTO authenticate(String username, String password);
+
+    UserResponseDTO getUserResponseById(Long id);
+    List<UserResponseDTO> getAllUserResponses();
+
+    public Map<String, Object> getUserStatistics();
 }

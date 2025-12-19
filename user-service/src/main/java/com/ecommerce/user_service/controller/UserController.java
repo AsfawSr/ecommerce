@@ -2,7 +2,9 @@ package com.ecommerce.user_service.controller;
 
 import com.ecommerce.user_service.dto.UserDTO;
 import com.ecommerce.user_service.dto.UserRequest;
+import com.ecommerce.user_service.dto.UserResponseDTO;
 import com.ecommerce.user_service.service.UserService;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -23,6 +25,8 @@ import java.util.Map;
 public class UserController {
 
     private final UserService userService;
+
+    // ========== INTERNAL ENDPOINTS ==========
 
     @PostMapping
     @Operation(summary = "Create a new user")
@@ -108,6 +112,46 @@ public class UserController {
         return ResponseEntity.noContent().build();
     }
 
+    // ========== EXTERNAL ENDPOINTS (For Order/Product Services) ==========
+
+    @GetMapping("/external")
+    @CircuitBreaker(name = "userService", fallbackMethod = "getAllUserResponsesFallback")
+    @Operation(summary = "Get all users for external services")
+    public ResponseEntity<List<UserResponseDTO>> getAllUserResponses() {
+        log.info("Getting all users for external services");
+        List<UserResponseDTO> users = userService.getAllUserResponses();
+        return ResponseEntity.ok(users);
+    }
+
+    public ResponseEntity<List<UserResponseDTO>> getAllUserResponsesFallback(Exception e) {
+        log.error("Fallback for getAllUserResponses: {}", e.getMessage());
+        return ResponseEntity.ok(List.of()); // Return empty list as fallback
+    }
+
+    @GetMapping("/external/{id}")
+    @CircuitBreaker(name = "userService", fallbackMethod = "getUserResponseByIdFallback")
+    @Operation(summary = "Get user by ID for external services")
+    public ResponseEntity<UserResponseDTO> getUserResponseById(@PathVariable Long id) {
+        log.info("Getting user response by ID: {}", id);
+        UserResponseDTO user = userService.getUserResponseById(id);
+        return ResponseEntity.ok(user);
+    }
+
+    public ResponseEntity<UserResponseDTO> getUserResponseByIdFallback(Long id, Exception e) {
+        log.error("Fallback for getUserResponseById({}): {}", id, e.getMessage());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(UserResponseDTO.builder()
+                        .id(id)
+                        .username("Service Unavailable")
+                        .email("unavailable@example.com")
+                        .firstName("Service")
+                        .lastName("Unavailable")
+                        .active(false)
+                        .build());
+    }
+
+    // ========== UTILITY ENDPOINTS ==========
+
     @GetMapping("/count")
     @Operation(summary = "Get user count")
     public ResponseEntity<Map<String, Long>> getUserCount() {
@@ -124,8 +168,18 @@ public class UserController {
         return ResponseEntity.ok(Map.of("exists", exists));
     }
 
-    // OpenFeign Required Endpoints (Must match Product Service Feign client)
+    @GetMapping("/stats")
+    @Operation(summary = "Get user statistics")
+    public ResponseEntity<Map<String, Object>> getUserStatistics() {
+        log.info("Getting user statistics");
+        Map<String, Object> stats = userService.getUserStatistics();
+        return ResponseEntity.ok(stats);
+    }
+
+    // ========== HEALTH & MONITORING ENDPOINTS ==========
+
     @GetMapping("/health")
+    @CircuitBreaker(name = "userService")
     public ResponseEntity<String> healthCheck() {
         log.info("Health check requested");
         return ResponseEntity.ok("User Service is UP and running with MySQL!");
@@ -145,5 +199,15 @@ public class UserController {
                 "timestamp", java.time.LocalDateTime.now().toString(),
                 "userCount", userService.countUsers()
         ));
+    }
+
+    @PostMapping("/authenticate")
+    @Operation(summary = "Authenticate user")
+    public ResponseEntity<UserDTO> authenticate(
+            @RequestParam String username,
+            @RequestParam String password) {
+        log.info("Authenticating user: {}", username);
+        UserDTO user = userService.authenticate(username, password);
+        return ResponseEntity.ok(user);
     }
 }
