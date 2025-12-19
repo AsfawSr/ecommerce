@@ -1,11 +1,9 @@
-
 package com.ecommerce.orderservice.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
 import java.math.BigDecimal;
 
 @Data
@@ -15,5 +13,5 @@ import java.math.BigDecimal;
 public class OrderItemRequest {
     private Long productId;
     private Integer quantity;
-    private BigDecimal unitPrice;
+    private BigDecimal unitPrice;  // Usually should come from product service
 }
